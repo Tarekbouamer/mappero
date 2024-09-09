@@ -1,0 +1,28 @@
+feature_extraction:
+  single_camera: 1
+  max_image_size: 2000
+  max_num_features: 4096
+  
+exhaustive_matcher:
+  guided_matching: 1
+
+mapper:
+  ba_global_max_refinements: 5
+
+image_undistorter:
+  output_type: "COLMAP"
+  max_image_size: 2000
+
+patch_match_stereo:
+  workspace_format: "COLMAP"
+  max_image_size: 2000
+
+stereo_fusion:
+  workspace_format: "COLMAP"
+  min_num_pixels: 5
+
+poisson_mesher:
+  trim: 7
+
+delaunay_mesher:
+  # No specific parameters for now, using defaults

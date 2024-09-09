@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mappero"
+version = "0.1"
+description = "A versatile tool for 3D capture, mapping, and reconstruction."
+authors = [{ name = "Your Name", email = "tarekbouamer1788@gmail.com" }]
+license = { file = "LICENSE" }
+readme = "README.md"
+requires-python = ">=3.8"
+
+
+dependencies = [
+    "numpy<2.0",
+    "omegaconf>=2.1",
+    "click>=8.0",
+    "loguru>=0.5.3",
+    "pycolmap>=0.6.0",
+    "open3d>=0.13.0",
+]
+
+[tool.setuptools]
+py-modules = ["mappero"]
+
+
+[project.urls]
+"Homepage" = "https://github.com/Tarekbouamer/mappero"
+"Documentation" = "https://github.com/Tarekbouamer/mappero/wiki"
+"Source" = "https://github.com/Tarekbouamer/mappero"
+"Tracker" = "https://github.com/Tarekbouamer/mappero/issues"
+
+
+[project.entry-points.console_scripts]
+mappero-colmap = "mappero.modules.colmap:run_colmap"
+mappero-glomap = "mappero.modules.glomap:run_glomap"
+mappero-vis = "mappero.visualization.vis3d:run_vis"
+mappero-gui = "mappero.visualization.gui:run_gui"
