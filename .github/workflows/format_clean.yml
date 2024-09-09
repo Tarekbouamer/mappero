@@ -1,0 +1,38 @@
+name: Format and Clean
+
+on:
+  push:
+    branches:
+      - dev
+  pull_request:
+    branches:
+      - dev
+
+jobs:
+  format-clean:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.8"
+
+      - name: Install dependencies
+        run: |
+          pip install ruff isort --upgrade
+
+      - name: Format
+        run: |
+          isort ./mappero
+
+      - name: Check and Fix
+        run: |
+          ruff check --fix ./mappero
+
+      # - name: Fix code with ruff
+      #   run: |
+      #     ruff fix ./mappero

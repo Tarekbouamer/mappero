@@ -1,0 +1,51 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - dev
+  pull_request:
+    branches:
+      - dev
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.8"
+
+      - name: Upgrade CMake
+        run: |
+          CMAKE_VERSION=3.28.6
+          CMAKE_DIR=cmake-${CMAKE_VERSION}-linux-x86_64
+
+          # Remove old manual pages
+          sudo rm -rf /usr/local/man
+
+          # Download and install CMake
+          wget https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/${CMAKE_DIR}.tar.gz
+          tar -xzf ${CMAKE_DIR}.tar.gz
+          sudo cp -r ${CMAKE_DIR}/* /usr/local/
+          rm -rf ${CMAKE_DIR}*
+
+      - name: Install COLMAP
+        run: |
+          echo "Installing COLMAP..."
+          ./install/install_colmap.sh
+
+      - name: Install Glomap
+        run: |
+          echo "Installing Glomap..."
+          ./install/install_glomap.sh
+
+      - name: Build project
+        run: |
+          echo "Building the project..."
+          pip install -ve .
