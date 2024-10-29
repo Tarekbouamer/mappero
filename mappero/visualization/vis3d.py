@@ -15,9 +15,9 @@ class Vis3D:
         # open3d vis
         self.__vis = None
 
-    def read_model(self, mode_path: str, ext: str = "") -> None:
+    def read_model(self, mode_path: str) -> None:
         """read colmap model from path."""
-        self.cameras, self.images, self.points3D = read_model(mode_path, ext)
+        self.cameras, self.images, self.points3D = read_model(mode_path)
 
         logger.info(f"num_cameras: {len(self.cameras)}")
         logger.info(f"num_images: {len(self.images)}")
@@ -130,14 +130,15 @@ class Vis3D:
 
 @click.command()
 @click.option("--model", required=True, type=click.Path(exists=True), help="path to input model folder.")
-@click.option("--format", type=click.Choice([".bin", ".txt"]), default=".bin", help="input model format.")
 @click.option("--scale", type=float, default=0.25, help="scale for visualizing cameras.")
 @click.option("--min_track_len", type=int, default=3, help="minimum track length for 3d points.")
-@click.option("--remove_statistical_outlier", is_flag=True, default=True, help="whether to remove statistical outliers.")
-def run_vis(model: str, format: str, scale: float, min_track_len: int, remove_statistical_outlier: bool) -> None:
+@click.option(
+    "--remove_statistical_outlier", is_flag=True, default=True, help="whether to remove statistical outliers."
+)
+def run_vis(model: str, scale: float, min_track_len: int, remove_statistical_outlier: bool) -> None:
     """main function to run the colmap visualization."""
     vis3d = Vis3D()
-    vis3d.read_model(model, ext=format)
+    vis3d.read_model(model)
 
     vis3d.create_window()
     vis3d.add_points(min_track_len=min_track_len, remove_statistical_outlier=remove_statistical_outlier)

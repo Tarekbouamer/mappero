@@ -2,14 +2,30 @@
 
 **Mappero** is a 3D capture, mapping, and reconstruction project that unifies various photogrammetry software and packages into a single toolset, simplifying 3D modeling, visual localization, and mapping workflows.
 
+<table align="center">
+  <tr>
+    <td style="text-align: center;">
+      <img src="assets/colmap.png" alt="Colmap" width="80%">
+      <p><strong>Colmap</strong></p>
+    </td>
+    <td style="text-align: center;">
+      <img src="assets/glomap.png" alt="Glomap" width="80%">
+      <p><strong>Glomap</strong></p>
+    </td>
+    <td style="text-align: center;">
+      <img src="assets/opensfm_superpoint_4096_superglue_outdoor_10.png" alt="OpenSFM SuperPoint" width="80%">
+      <p><strong>OpenSFM</strong>: Superpoint Superglue 4096 .</p>
+    </td>
+  </tr>
+</table>
+
 ## Table of Contents 📑
 
 - [Support and Features](#support-and-features)
 - [Installation](#installation)
 - [Usage](#usage)
   - [Workspace](#workspace)
-  - [Colmap](#colmap)
-  - [Glomap](#glomap)
+  - [Running Mappers](#running-mappers)
   - [Visualization](#visualization)
 - [Running with Docker](#running-with-docker)
 
@@ -18,6 +34,8 @@
 - **Support**: Integrates popular photogrammetry tools:
   - **COLMAP**: Structure-from-Motion and Multi-View Stereo
   - **GLomap**: Global Localization Mapping
+  - **Pycolmap**: Python bindings for COLMAP
+  - **OpenSfM**: Reconstruction using pycolmap and imm lib features and matchers
 - 3D visualization based on **Open3D**
 
 ## Installation 🖥️
@@ -27,7 +45,12 @@
 - Python 3.8+
 - Git
 - Docker (optional for containerized deployment)
-- Required Python packages (specified in `pyproject.toml`)
+- [COLMAP](https://github.com/colmap/colmap) 3.9.1
+- [GLomap](https://github.com/colmap/glomap) 1.0.0
+- [Pycolmap](https://github.com/colmap/pycolmap) 0.6.1
+- [IMM](https://github.com/Tarekbouamer/imm/tree/dev) dev
+
+Required Python packages (specified in `pyproject.toml`)
 
 ### Clone the Repository
 
@@ -44,6 +67,7 @@
    ./install_cmake.sh
    ./install_colmap.sh
    ./install_glomap.sh
+   ./install_pycolmap.sh
    ```
 
 3. Install Mappero:
@@ -57,38 +81,58 @@
 
 ### Workspace
 
-Mappero follows the same structure as Colmap for workspace setup. The workspace should contain the following directories:
-
-- `images`: Contains the images to be processed.
-- `sparse`: Contains the sparse reconstruction results.
-
-### Colmap
-
-To run Colmap:
+Mappero follows Colmap's workspace structure for data organization, and some mappers requires Colmap's initial reconstruction as input.
 
 ```bash
+south-building/
+├── images/
+├── colmap/ # or pycolmap/
+│   ├── config.json
+│   ├── images_paths.txt
+│   ├── database.db
+│   ├── sparse/0/
+├── glomap/
+│   ├── config.json
+|   ├── database.db
+|   ├── images_paths.txt
+|   ├── sparse/0/
+├── opensfm_xx/  # xx indicates the extractor and matcher used and their parameters
+│   ├── config.yaml
+│   ├── covisible_pairs.txt
+│   ├── features.h5
+│   ├── matches.h5
+│   ├── database.db
+│   ├── sparse/
+
+```
+
+### Running Mappers
+
+To run the mappers, use the following commands:
+
+```bash
+# Colmap
 mappero-colmap /path/to/data/south-building
-```
 
-For more options and information, use the help flag:
-
-```bash
-mappero-colmap -h
-```
-
-### Glomap
-
-To run Glomap:
-
-```bash
+# Glomap
 mappero-glomap /path/to/data/south-building
+
+# Pycolmap
+mappero-pycolmap /path/to/data/south-building
+
+# OpenSfM
+mappero-opensfm /path/to/data/south-building
+
+  Options:
+    --image_path       Path to the image directory.
+    --config_path      Path to the config file.
+    --extractor        Feature extractor.
+    --max_keypoints    Maximum number of keypoints to extract per image.
+    --matcher          Feature matcher.
+    --covisibility     Number of covisible images.
 ```
 
-For more options and information, use the help flag:
-
-```bash
-mappero-glomap -h
-```
+We use feature extractors and matchers from the `imm` library.
 
 ### Visualization
 
@@ -96,12 +140,6 @@ To visualize the results:
 
 ```bash
 mappero-vis --model /path/to/data/south-building/sparse/0
-```
-
-For more visualization options, use the help flag:
-
-```bash
-mappero-vis -h
 ```
 
 ## Running with Docker 🐳

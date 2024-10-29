@@ -1,0 +1,8 @@
+covisibility: 10
+
+feature_extraction:
+  extractor: "superpoint"
+  max_keypoints: 1024
+
+feature_matching:
+  matcher: "superglue_outdoor"

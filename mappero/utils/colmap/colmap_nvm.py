@@ -44,7 +44,7 @@ def camera_center_to_translation(c, qvec):
 
 
 def read_nvm_model(nvm_path, intrinsics_path, image_ids, camera_ids, skip_points=False):
-    logger.info("reading the NVM model...")
+    logger.info("reading the NVM model")
 
     with open(intrinsics_path, "r") as f:
         raw_intrinsics = f.readlines()
@@ -71,7 +71,7 @@ def read_nvm_model(nvm_path, intrinsics_path, image_ids, camera_ids, skip_points
     num_images = int(line)
     assert num_images == len(cameras)
 
-    logger.info(f"reading {num_images} images...")
+    logger.info(f"reading {num_images} images")
 
     image_idx_to_db_image_id = []
     image_data = []
@@ -94,7 +94,7 @@ def read_nvm_model(nvm_path, intrinsics_path, image_ids, camera_ids, skip_points
         logger.info(f"Skipping {num_points} points.")
         num_points = 0
     else:
-        logger.info(f"reading {num_points} points...")
+        logger.info(f"reading {num_points} points")
 
     points3D = {}
     image_idx_to_keypoints = defaultdict(list)

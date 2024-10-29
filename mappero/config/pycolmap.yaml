@@ -1,0 +1,10 @@
+feature_extraction:
+  camera_model: "SIMPLE_RADIAL"
+  max_image_size: 1000
+  max_num_features: 4096
+
+patch_match_stereo:
+  workspace_format: "COLMAP"
+  max_image_size: 1200
+  window_radius: 8
+  num_iterations: 7

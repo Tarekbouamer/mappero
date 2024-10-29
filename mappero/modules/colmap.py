@@ -5,6 +5,7 @@ from loguru import logger
 from omegaconf import OmegaConf
 
 from mappero.utils.config import save_config
+from mappero.utils.logger import setup_logger
 from mappero.utils.process import run_command
 from mappero.utils.io import find_images
 
@@ -13,7 +14,7 @@ def run_colmap_process(process_name: str, params: dict):
     """run a colmap process."""
     logger.info(f"starting {process_name}")
     run_command(["colmap", process_name], params)
-    logger.success(f"{process_name.replace('_', ' ').title()} complete")
+    logger.success(f"{process_name.replace('_', ' ').title()} completed")
 
 
 def feature_extraction(config, image_path: Path, database_path: Path):
@@ -142,36 +143,41 @@ def run_mvs(workspace_path: Path, output_path: Path):
 )
 @click.help_option("--help", "-h")
 def run_colmap(workspace_path, config_path, image_path, task, max_image_size, vis, matcher):
-    """
-    run the colmap pipeline using the specified workspace and configuration.
-    """
-    # set up paths
-    workspace_path = Path(workspace_path)
-    config_path = Path(config_path)
-    database_path = workspace_path / "database.db"
+    """Colmap pipeline wrapper."""
 
-    # set images path
+    # Setup logger
+    setup_logger("Colmap")
+    logger.info("Initializing Colmap pipeline")
+
+    # Workspace
+    workspace_path = Path(workspace_path)
+
+    # Image path
     image_path = Path(image_path) if image_path else workspace_path / "images"
 
-    # create directories
-    sparse_path = workspace_path / "sparse"
-    dense_path = workspace_path / "dense"
-    fusion_path = dense_path / "fused.ply"
+    # Colmap paths
+    colmap_path = workspace_path / "colmap"
+    colmap_path.mkdir(parents=True, exist_ok=True)
+    logger.debug(f"Colmap path: {colmap_path}")
 
-    # load configuration
+    database_path = colmap_path / "database.db"
+    sparse_path = colmap_path / "sparse"
+    dense_path = colmap_path / "dense"
+    fusion_path = colmap_path / "fused.ply"
+
+    # Config
     config = OmegaConf.load(config_path)
+    save_config(config, colmap_path)
+    logger.debug(f"Configuration loaded: {config}")
 
-    # find images and save configuration
-    images_paths = find_images(image_path, workspace_path / "images_paths.txt")
+    # Find images
+    images_paths = find_images(image_path, colmap_path / "images_paths.txt")
 
     if len(images_paths) == 0:
         logger.error("no images found in the specified path.")
         return
 
     logger.info(f"found {len(images_paths)} images in {image_path}")
-
-    # update configuration
-    save_config(config, workspace_path)
 
     # exe
     if task == "sfm":
@@ -189,7 +195,7 @@ def run_colmap(workspace_path, config_path, image_path, task, max_image_size, vi
     elif task == "triangulation":
         raise NotImplementedError("triangulation is not yet implemented")
 
-    logger.success("colmap pipeline complete")
+    logger.success("Colmap pipeline completed successfully")
 
 
 if __name__ == "__main__":

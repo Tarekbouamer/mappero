@@ -1,7 +1,9 @@
 
 # local
+hub
 bin
-
+logs
+scripts
 
 
 # Byte-compiled / optimized / DLL files
