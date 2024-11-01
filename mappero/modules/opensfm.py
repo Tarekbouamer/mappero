@@ -5,7 +5,9 @@ from typing import Dict, Union
 import click
 import numpy as np
 import torch
-
+from imm.tools import Extraction
+from imm.tools.match import Matching
+from imm.utils.dataset import FeaturesPairsDataset, ImagesFromList
 from loguru import logger
 from omegaconf import OmegaConf
 from tqdm import tqdm
@@ -13,7 +15,6 @@ from tqdm import tqdm
 from mappero.utils.colmap.database import COLMAPDatabase
 from mappero.utils.colmap.read_write_model import read_model
 from mappero.utils.config import save_config
-from mappero.utils.dataset import ImagesFromList, PairsDataset
 from mappero.utils.general import (
     OutputCapture,
     compute_epipolar_errors,
@@ -26,9 +27,6 @@ from mappero.utils.general import (
 )
 from mappero.utils.logger import setup_logger
 from mappero.utils.warnings import suppress_warnings
-
-from imm.extraction import extract_dataset, initialize_extractor
-from imm.matching import initialize_matcher, match_sequence
 
 try:
     import pycolmap
@@ -91,8 +89,7 @@ def covisible_pairs(config, sfm_model_path: Path, num_covis: int = None, sfm_pai
     with open(sfm_pairs_path, "w") as f:
         f.write("\n".join(" ".join(pair) for pair in sfm_pairs))
 
-    logger.info(
-        f"Found {len(sfm_pairs)} covisible pairs and saved to {sfm_pairs_path}")
+    logger.info(f"Found {len(sfm_pairs)} covisible pairs and saved to {sfm_pairs_path}")
 
     return sfm_pairs_path
 
@@ -236,8 +233,7 @@ def geometric_verification(
         id0 = image_ids[name0]
         image0 = reference.images[id0]
         cam0 = reference.cameras[image0.camera_id]
-        kps0, noise0 = get_keypoints(
-            features_path, name0, return_uncertainty=True)
+        kps0, noise0 = get_keypoints(features_path, name0, return_uncertainty=True)
         noise0 = 1.0 if noise0 is None else noise0
         if len(kps0) > 0:
             kps0 = np.stack(cam0.cam_from_img(kps0))
@@ -248,8 +244,7 @@ def geometric_verification(
             id1 = image_ids[name1]
             image1 = reference.images[id1]
             cam1 = reference.cameras[image1.camera_id]
-            kps1, noise1 = get_keypoints(
-                features_path, name1, return_uncertainty=True)
+            kps1, noise1 = get_keypoints(features_path, name1, return_uncertainty=True)
             noise1 = 1.0 if noise1 is None else noise1
             if len(kps1) > 0:
                 kps1 = np.stack(cam1.cam_from_img(kps1))
@@ -267,13 +262,10 @@ def geometric_verification(
                 continue
 
             cam1_from_cam0 = image1.cam_from_world * image0.cam_from_world.inverse()
-            errors0, errors1 = compute_epipolar_errors(
-                cam1_from_cam0, kps0[matches[:, 0]], kps1[matches[:, 1]])
+            errors0, errors1 = compute_epipolar_errors(cam1_from_cam0, kps0[matches[:, 0]], kps1[matches[:, 1]])
             valid_matches = np.logical_and(
-                errors0 <= cam0.cam_from_img_threshold(
-                    noise0 * max_epip_error),
-                errors1 <= cam1.cam_from_img_threshold(
-                    noise1 * max_epip_error),
+                errors0 <= cam0.cam_from_img_threshold(noise0 * max_epip_error),
+                errors1 <= cam1.cam_from_img_threshold(noise1 * max_epip_error),
             )
             # TODO: We could also add E to the database, but we need
             # to reverse the transformations if id0 > id1 in utils/database.py.
@@ -311,13 +303,9 @@ def extract_features(
         "max_keypoints": max_keypoints,
     }
 
-    # Initialize extractor
-    extractor = initialize_extractor(
-        name=ext_name, cfg=ext_config, device=device)
-    logger.info(f"Initialized {ext_name} extractor with config {ext_config}")
+    extractor = Extraction(ext_name, ext_config, device=device)
+    extractor.extract_dataset(dataset, features_path)
 
-    # Extract features
-    extract_dataset(extractor, dataset, features_path, device=device)
     logger.success(f"Features saved to {features_path}")
 
 
@@ -341,17 +329,13 @@ def feature_matching(
         logger.warning("No new pairs to match.")
         return
 
-    # Initialize matcher
-    matcher_instance = initialize_matcher(name=matcher, device=device)
-    logger.info(f"Initialized matcher: {matcher}")
+    # Load the features dataset
+    pairs_dataset = FeaturesPairsDataset(pairs, features_path)
 
-    # Load pairs
-    dataset = PairsDataset(pairs, features_path)
+    # Match Features
+    matcher = Matching(matcher, device=device)
+    matcher.match_sequence_features(pairs_dataset, matches_path)
 
-    if len(dataset) == 0:
-        logger.warning("No pairs to match.")
-
-    match_sequence(matcher_instance, dataset, matches_path, device=device)
     logger.success("Feature matching saved to %s", matches_path)
 
 
@@ -374,8 +358,7 @@ def triangulate_points(
     # Run the triangulation with output capture for optional verbosity
     with OutputCapture(verbose):
         with pycolmap.ostream():
-            reconstruction = pycolmap.triangulate_points(
-                reference_model, database_path, images_path, opensfm_path)
+            reconstruction = pycolmap.triangulate_points(reference_model, database_path, images_path, opensfm_path)
 
     # Log summary statistics
     logger.info(f"Reconstruction statistics:\n{reconstruction.summary()}")
@@ -439,8 +422,7 @@ def run_opensfm(workspace_path, image_path, config_path, extractor, max_keypoint
     logger.debug(f"Configuration loaded: {config}")
 
     # Generate covisible pairs
-    covisible_pairs(config, sfm_model_path,
-                    num_covis=config.covisibility, sfm_pairs_path=sfm_pairs_path)
+    covisible_pairs(config, sfm_model_path, num_covis=config.covisibility, sfm_pairs_path=sfm_pairs_path)
 
     # Extract features
     extract_features(image_path, features_path, config=config, device=device)
@@ -455,16 +437,13 @@ def run_opensfm(workspace_path, image_path, config_path, extractor, max_keypoint
 
     import_features(sfm_model_path, features_path, database_path)
 
-    import_matches(sfm_model_path, matches_path,
-                   sfm_pairs_path, database_path, config=config)
+    import_matches(sfm_model_path, matches_path, sfm_pairs_path, database_path, config=config)
 
     # Perform geometric verification
-    geometric_verification(sfm_model_path, database_path,
-                           sfm_pairs_path, features_path, matches_path)
+    geometric_verification(sfm_model_path, database_path, sfm_pairs_path, features_path, matches_path)
 
     # Triangulate 3D points
-    triangulate_points(sfm_model_path, sparse_path,
-                       database_path, image_path)
+    triangulate_points(sfm_model_path, sparse_path, database_path, image_path)
 
     logger.success("OpenSfM pipeline completed successfully")
 

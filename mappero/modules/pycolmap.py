@@ -52,8 +52,7 @@ def match_features(config, database_path, feature_matching="exhaustive"):
     Returns:
         None
     """
-    logger.info(
-        f"Starting feature matching using '{feature_matching}' matcher")
+    logger.info(f"Starting feature matching using '{feature_matching}' matcher")
     # Set up SIFT matching options
     sift_options = pycolmap.SiftMatchingOptions()
     logger.debug(f"SIFT matching options: {sift_options}")
@@ -128,8 +127,7 @@ def undistort_images(config, image_path, sparse_path, dense_path):
         input_path=sparse_path,
         image_path=image_path,
     )
-    logger.info(
-        f"Image undistortion completed. Undistorted images saved to {dense_path}")
+    logger.info(f"Image undistortion completed. Undistorted images saved to {dense_path}")
 
 
 def patch_match_stereo(config, dense_path):
@@ -181,8 +179,7 @@ def stereo_fusion(config, dense_path, fusion_path):
         workspace_format="COLMAP",
         options=fusion_options,
     )
-    logger.info(
-        f"Stereo fusion completed. Fused point cloud saved to {fusion_path}")
+    logger.info(f"Stereo fusion completed. Fused point cloud saved to {fusion_path}")
 
 
 @click.command()
@@ -191,8 +188,7 @@ def stereo_fusion(config, dense_path, fusion_path):
 @click.option("--image_path", type=click.Path(), help="Path to the image directory.")
 @click.option(
     "--task",
-    type=click.Choice(["sfm", "mvs", "fusion", "mesh",
-                      "bundle_adjustment", "triangulation"]),
+    type=click.Choice(["sfm", "mvs", "fusion", "mesh", "bundle_adjustment", "triangulation"]),
     default="sfm",
     help="Task to run in the pipeline.",
 )
@@ -205,7 +201,7 @@ def stereo_fusion(config, dense_path, fusion_path):
 )
 @click.help_option("--help", "-h")
 def run_pycolmap(workspace_path, config_path, image_path, task, max_image_size, matcher):
-    """ PyCOLMAP pipeline. """
+    """PyCOLMAP pipeline."""
     # Setup logger
     setup_logger("PyCOLMAP")
     logger.info("Initializing PyCOLMAP pipeline")
