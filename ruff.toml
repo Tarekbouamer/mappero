@@ -1,5 +1,6 @@
 line-length = 120
+target-version = "py38"
 indent-width = 4
 
-#ignore F841
-ignore = ["F841"]
+[lint]
+ignore = ["E501", "F841", "E741"]

@@ -4,6 +4,7 @@ import click
 import numpy as np
 import open3d as o3d
 from loguru import logger
+
 from mappero.utils.colmap.read_write_model import qvec2rotmat, read_model
 
 

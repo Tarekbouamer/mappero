@@ -4,25 +4,21 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mappero"
-version = "0.1"
 description = "A versatile tool for 3D capture, mapping, and reconstruction."
 authors = [{ name = "Tarek BOUAMER", email = "tarekbouamer1788@gmail.com" }]
 license = { file = "LICENSE" }
-readme = "README.md"
 requires-python = ">=3.8"
 
-dependencies = [
-    "h5py",
-    "numpy<2.0",
-    "omegaconf>=2.1",
-    "click>=8.0",
-    "loguru>=0.5.3",
-    "open3d>=0.13.0",
-    "imm @ git+https://github.com/Tarekbouamer/imm.git@dev#egg=imm", 
-]
+dynamic = ["readme", "version", "dependencies"]
+
 
 [tool.setuptools.packages.find]
 include = ["mappero*"]
+
+[tool.setuptools.dynamic]
+version = { attr = "mappero.__version__" }
+readme = { file = "README.md", content-type = "text/markdown" }
+dependencies = { file = "requirements.txt" }
 
 [project.urls]
 "Homepage" = "https://github.com/Tarekbouamer/mappero"
@@ -31,9 +27,24 @@ include = ["mappero*"]
 "Tracker" = "https://github.com/Tarekbouamer/mappero/issues"
 
 [project.entry-points.console_scripts]
-mappero-colmap = "mappero.modules.colmap:run_colmap"
-mappero-pycolmap = "mappero.modules.pycolmap:run_pycolmap"
-mappero-glomap = "mappero.modules.glomap:run_glomap"
-mappero-opensfm = "mappero.modules.opensfm:run_opensfm"
+# main commands
+mappero-colmap = "mappero.cli._colmap:colmap_cli"
+mappero-glomap = "mappero.cli._glomap:glomap_cli"
+mappero-opensfm = "mappero.cli._opensfm:opensfm_cli"
+mappero-pycolmap = "mappero.cli._pycolmap:pycolmap_cli"
+
+# visualization
 mappero-vis = "mappero.visualization.vis3d:run_vis"
 mappero-gui = "mappero.visualization.gui:run_gui"
+
+[project.optional-dependencies]
+extra = ["imm @ git+https://github.com/Tarekbouamer/imm@v0.1.0"]
+
+
+# [tool.ruff]
+# fix = true
+
+# [tool.ruff.isort]
+# profile = "black"
+# combine_as_imports = true
+# force_sort_within_sections = true

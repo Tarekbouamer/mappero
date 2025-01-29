@@ -112,24 +112,31 @@ To run the mappers, use the following commands:
 
 ```bash
 # Colmap
-mappero-colmap /path/to/data/south-building
+mappero-colmap [OPTIONS] COMMAND [ARGS]...
 
+Commands:
+  fusion  Run the Fusion pipeline.
+  mesh    Run the Meshing pipeline.
+  mvs     Run the Multi-View Stereo (MVS) pipeline.
+  sfm     Run the Structure-from-Motion (SfM) pipeline.
+                                  
 # Glomap
-mappero-glomap /path/to/data/south-building
+mappero-glomap [OPTIONS] WORKSPACE_PATH
 
-# Pycolmap
-mappero-pycolmap /path/to/data/south-building
+# PyColmap
+mappero-pycolmap [OPTIONS] COMMAND [ARGS]...
+
+Commands:
+  fusion  Run Fusion pipeline for creating the 3D model.
+  mvs     Run Multi-View Stereo (MVS) pipeline.
+  sfm     Run Structure-from-Motion (SfM) pipeline.
+                                  
 
 # OpenSfM
-mappero-opensfm /path/to/data/south-building
+Usage: mappero-opensfm [OPTIONS] COMMAND [ARGS]...
 
-  Options:
-    --image_path       Path to the image directory.
-    --config_path      Path to the config file.
-    --extractor        Feature extractor.
-    --max_keypoints    Maximum number of keypoints to extract per image.
-    --matcher          Feature matcher.
-    --covisibility     Number of covisible images.
+Commands:
+  sfm  OpenSfM pipeline to process images, extract features, match pairs,...
 ```
 
 We use feature extractors and matchers from the `imm` library.

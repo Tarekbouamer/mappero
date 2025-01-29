@@ -29,13 +29,13 @@
 #
 # Author: Johannes L. Schoenberger (jsch-at-demuc-dot-de)
 
-import os
-import collections
-import numpy as np
-import struct
 import argparse
-from loguru import logger
+import collections
+import os
+import struct
 
+import numpy as np
+from loguru import logger
 
 CameraModel = collections.namedtuple("CameraModel", ["model_id", "model_name", "num_params"])
 Camera = collections.namedtuple("Camera", ["id", "model", "width", "height", "params"])
@@ -410,19 +410,14 @@ def detect_model_format(path, ext):
 
 
 def read_model(path, ext=""):
-    # try to detect the extension automatically
     if ext == "":
         if detect_model_format(path, ".bin"):
             ext = ".bin"
         elif detect_model_format(path, ".txt"):
             ext = ".txt"
         else:
-            try:
-                cameras, images, points3D = read_model(os.path.join(path, "model/"))
-                logger.warning("This SfM file structure was deprecated in hloc v1.1")
-                return cameras, images, points3D
-            except FileNotFoundError:
-                raise FileNotFoundError(f"Could not find binary or text COLMAP model at {path}")
+            raise ValueError(f"Could not detect model format in {path}")
+            exit(1)
 
     if ext == ".txt":
         cameras = read_cameras_text(os.path.join(path, "cameras" + ext))

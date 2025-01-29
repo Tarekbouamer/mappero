@@ -1,6 +1,6 @@
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, Union
+from typing import Union
 
 import click
 import numpy as np
@@ -9,12 +9,10 @@ from imm.tools import Extraction
 from imm.tools.match import Matching
 from imm.utils.dataset import FeaturesPairsDataset, ImagesFromList
 from loguru import logger
-from omegaconf import OmegaConf
 from tqdm import tqdm
 
 from mappero.utils.colmap.database import COLMAPDatabase
 from mappero.utils.colmap.read_write_model import read_model
-from mappero.utils.config import save_config
 from mappero.utils.general import (
     OutputCapture,
     compute_epipolar_errors,
@@ -25,7 +23,6 @@ from mappero.utils.general import (
     names_to_ids,
     parse_retrieval,
 )
-from mappero.utils.logger import setup_logger
 from mappero.utils.warnings import suppress_warnings
 
 try:
@@ -34,20 +31,17 @@ except ImportError:
     logger.error("PyCOLMAP is not installed")
 
 
-def covisible_pairs(config, sfm_model_path: Path, num_covis: int = None, sfm_pairs_path: Path = None) -> Path:
+@suppress_warnings()
+def covisible_pairs(model_path: Path, num_covis: int = None, pairs_path: Path = None) -> Path:
     """Find covisible pairs of images in the reconstruction and save them to a file."""
 
     # Set default output
-    if sfm_pairs_path is None:
-        sfm_pairs_path = sfm_model_path / "covisible_pairs.txt"
-
-    # Set the number of covisible pairs
-    if num_covis is None:
-        num_covis = config.covisibility
+    if pairs_path is None:
+        pairs_path = model_path / "covisible_pairs.txt"
 
     logger.info(f"Searching for {num_covis} covisibility pairs")
     # Load the model
-    _, images, points3D = read_model(sfm_model_path)
+    _, images, points3D = read_model(model_path)
 
     sfm_pairs = []
     for image_id, image in tqdm(images.items(), desc="Processing images"):
@@ -86,15 +80,15 @@ def covisible_pairs(config, sfm_model_path: Path, num_covis: int = None, sfm_pai
             sfm_pairs.append(pair)
 
     # Save the pairs to the specified path
-    with open(sfm_pairs_path, "w") as f:
+    with open(pairs_path, "w") as f:
         f.write("\n".join(" ".join(pair) for pair in sfm_pairs))
 
-    logger.info(f"Found {len(sfm_pairs)} covisible pairs and saved to {sfm_pairs_path}")
+    logger.info(f"Found {len(sfm_pairs)} covisible pairs and saved to {pairs_path}")
 
-    return sfm_pairs_path
+    return pairs_path
 
 
-def create_database(sfm_model_path: Path, database_path: Path) -> None:
+def create_database(model_path: Path, database_path: Path) -> None:
     """Create a reconstruction database from an SfM model."""
 
     # Check if the database already exists
@@ -103,8 +97,8 @@ def create_database(sfm_model_path: Path, database_path: Path) -> None:
         database_path.unlink()
 
     # Load the SfM model
-    model = pycolmap.Reconstruction(sfm_model_path)
-    logger.info(f"Loaded SfM model from {sfm_model_path}")
+    model = pycolmap.Reconstruction(model_path)
+    logger.info(f"Loaded SfM model from {model_path}")
 
     # Connect to the database and create tables
     db = COLMAPDatabase.connect(database_path)
@@ -129,7 +123,7 @@ def create_database(sfm_model_path: Path, database_path: Path) -> None:
     logger.success(f"Database created successfully at {database_path}")
 
 
-def import_features(sfm_model_path: Path, features_path: Path, database_path: Path) -> None:
+def import_features(model_path: Path, features_path: Path, database_path: Path) -> None:
     """Import features from a feature file into the COLMAP database."""
 
     logger.info("Importing features into the database")
@@ -138,7 +132,7 @@ def import_features(sfm_model_path: Path, features_path: Path, database_path: Pa
     db = COLMAPDatabase.connect(database_path)
 
     # Get image IDs
-    image_ids = names_to_ids(sfm_model_path)
+    image_ids = names_to_ids(model_path)
 
     # Import features
     for image_name, image_id in tqdm(image_ids.items(), desc="Importing features", colour="magenta"):
@@ -153,11 +147,11 @@ def import_features(sfm_model_path: Path, features_path: Path, database_path: Pa
 
 
 def import_matches(
-    sfm_model_path: Path,
+    model_path: Path,
     matches_path: Path,
     pairs_path: Path,
     database_path: Path,
-    config: Dict = None,
+    min_match_score: float = -1,
     skip_geometric_verification: bool = False,
 ) -> None:
     """Import matches from a file into the COLMAP database."""
@@ -173,7 +167,7 @@ def import_matches(
     logger.info("Connected to the database.")
 
     # Retrieve image IDs
-    image_ids = names_to_ids(sfm_model_path)
+    image_ids = names_to_ids(model_path)
     matched = set()
 
     # Process each pair of images
@@ -188,8 +182,7 @@ def import_matches(
         matches, scores = get_matches(matches_path, name0, name1)
 
         # Apply minimum match score filter
-        min_match_score = config.get("min_match_score", 0.0)
-        if min_match_score:
+        if min_match_score > 0:
             matches = matches[scores > min_match_score]
 
         # Add matches
@@ -207,7 +200,7 @@ def import_matches(
 
 
 def geometric_verification(
-    sfm_model_path: Path,
+    model_path: Path,
     database_path: Path,
     pairs_path: Path,
     features_path: Path,
@@ -219,8 +212,8 @@ def geometric_verification(
     logger.info("Performing geometric verification of the matches")
 
     # Load image IDs and the reference reconstruction
-    image_ids = names_to_ids(sfm_model_path)
-    reference = pycolmap.Reconstruction(sfm_model_path)
+    image_ids = names_to_ids(model_path)
+    reference = pycolmap.Reconstruction(model_path)
 
     # Parse image pairs and connect to the database
     pairs = parse_retrieval(pairs_path)
@@ -267,7 +260,7 @@ def geometric_verification(
                 errors0 <= cam0.cam_from_img_threshold(noise0 * max_epip_error),
                 errors1 <= cam1.cam_from_img_threshold(noise1 * max_epip_error),
             )
-            # TODO: We could also add E to the database, but we need
+            #TODO: We could also add E to the database, but we need
             # to reverse the transformations if id0 > id1 in utils/database.py.
             db.add_two_view_geometry(id0, id1, matches[valid_matches, :])
             inlier_ratios.append(np.mean(valid_matches))
@@ -287,23 +280,25 @@ def geometric_verification(
 
 
 def extract_features(
-    image_path: Path, features_path: Path, config: dict = None, device: Union[str, torch.device] = "cpu"
+    images_path: Path,
+    extractor: str,
+    max_keypoints: int,
+    max_img_size: int,
+    features_path: Path,
+    device: Union[str, torch.device] = "cpu",
 ) -> None:
     """Extract features from a list of images and save them to features.h5."""
     logger.info("Starting feature extraction")
 
     # Load images
-    dataset = ImagesFromList(image_path)
+    dataset = ImagesFromList(images_path, max_img_size=max_img_size)
 
     # Extractor configuration
-    ext_name = config["feature_extraction"].get("extractor")
-    max_keypoints = config["feature_extraction"].get("max_keypoints")
-
-    ext_config = {
+    options = {
         "max_keypoints": max_keypoints,
     }
 
-    extractor = Extraction(ext_name, ext_config, device=device)
+    extractor = Extraction(extractor, options, device=device)
     extractor.extract_dataset(dataset, features_path)
 
     logger.success(f"Features saved to {features_path}")
@@ -312,8 +307,8 @@ def extract_features(
 def feature_matching(
     pairs_path: Path,
     features_path: Path,
+    matcher: str,
     matches_path: Path,
-    matcher: str = "superglue_outdoor",
     device: Union[str, torch.device] = "cpu",
 ) -> None:
     """Matches features based on image pairs and saves the results."""
@@ -340,7 +335,7 @@ def feature_matching(
 
 
 def triangulate_points(
-    sfm_model_path: Path,
+    model_path: Path,
     opensfm_path: Path,
     database_path: Path,
     images_path: Path,
@@ -352,8 +347,8 @@ def triangulate_points(
     logger.info("Running 3D triangulation")
 
     # Load the reference model
-    reference_model = pycolmap.Reconstruction(sfm_model_path)
-    logger.info(f"Loaded reference model from {sfm_model_path}")
+    reference_model = pycolmap.Reconstruction(model_path)
+    logger.info(f"Loaded reference model from {model_path}")
 
     # Run the triangulation with output capture for optional verbosity
     with OutputCapture(verbose):
@@ -368,85 +363,94 @@ def triangulate_points(
     return reconstruction
 
 
-@click.command()
-@click.argument("workspace_path", type=click.Path(exists=True))
-@click.option("--image_path", type=click.Path(), help="Path to the image directory.")
-@click.option("--config_path", default="mappero/config/opensfm.yaml", help="Path to the config file.")
-@click.option("--extractor", default="superpoint", help="Feature extractor.")
-@click.option("--max_keypoints", default=4096, help="Maximum number of keypoints to extract per image.")
-@click.option("--matcher", default="superglue_outdoor", help="Feature matcher.")
-@click.option("--covisibility", default=10, help="Number of covisible images.")
-@click.help_option("--help", "-h")
-@suppress_warnings()
-def run_opensfm(workspace_path, image_path, config_path, extractor, max_keypoints, matcher, covisibility):
-    """
-    OpenSfM pipeline to process images, extract features, match pairs, perform geometric verification, and triangulate points.
-    """
-    # Setup logger
-    setup_logger("OpenSfM")
-    logger.info("Initializing OpenSfM pipeline")
+# @click.command()
+# @click.option("--model_path", type=click.Path(exists=True), required=True, help="Path to the COLMAP model.")
+# @click.option("--workspace", type=click.Path(), required=True, help="Path to the workspace directory.")
+# @click.option("--images_path", type=click.Path(), help="Path to the image directory.")
+# @click.option("--extractor", default="superpoint", help="Feature extractor.")
+# @click.option("--matcher", default="superglue_outdoor", help="Feature matcher.")
+# @click.option("--max_keypoints", default=-1, help="Maximum number of keypoints to extract per image, -1 for no limit.")
+# @click.option("--max_img_size", default=-1, help="Maximum image size for feature extraction, -1 for no resizing.")
+# @click.option("--covisibility", default=10, help="Number of covisible images.")
+# @click.option("--save_path", help="Path to save the OpenSfM model.")
+# @click.help_option("--help", "-h")
+# @suppress_warnings()
+# def run_opensfm(
+#     model_path: str,
+#     workspace: str,
+#     images_path: str,
+#     extractor: str,
+#     matcher: str,
+#     max_keypoints: int,
+#     max_img_size: int,
+#     covisibility: int,
+#     save_path: str,
+# ):
+#     """
+#     OpenSfM pipeline to process images, extract features, match pairs, perform geometric verification, and triangulate points.
+#     """
+#     # Setup logger
+#     logger.info("Initializing OpenSfM pipeline")
 
-    # Device setup
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    logger.debug(f"Using device: {device}")
+#     # Device setup
+#     device = "cuda" if torch.cuda.is_available() else "cpu"
+#     logger.debug(f"Using device: {device}")
 
-    # Workspace
-    workspace_path = Path(workspace_path)
+#     # Workspace
+#     workspace = Path(workspace)
 
-    # Image path
-    image_path = Path(image_path) if image_path else workspace_path / "images"
+#     # Image path
+#     images_path = Path(images_path) if images_path else workspace / "images"
 
-    # SfM model path TODO: better handling of multiple source of models, default to colmap/sparse/0
-    sfm_model_path = workspace_path / "colmap/sparse/0"
+#     # OpenSfM Paths
+#     if save_path:
+#         opensfm_path = Path(save_path)
+#     else:
+#         new_model_name = f"opensfm_{extractor}_{max_keypoints}_{matcher}_{covisibility}"
+#         opensfm_path = workspace / new_model_name
+#     opensfm_path.mkdir(parents=True, exist_ok=True)
+#     logger.debug(f"New model path: {opensfm_path}")
 
-    # OpenSfM Paths
-    new_model_name = f"opensfm_{extractor}_{max_keypoints}_{matcher}_{covisibility}"
-    opensfm_path = workspace_path / new_model_name
-    opensfm_path.mkdir(parents=True, exist_ok=True)
-    logger.debug(f"New model path: {opensfm_path}")
+#     # Output paths
+#     database_path = opensfm_path / "database.db"
+#     features_path = opensfm_path / "features.h5"
+#     matches_path = opensfm_path / "matches.h5"
+#     pairs_path = opensfm_path / "covisible_pairs.txt"
+#     sparse_path = opensfm_path / "sparse"
 
-    # Output paths
-    database_path = opensfm_path / "database.db"
-    features_path = opensfm_path / "features.h5"
-    matches_path = opensfm_path / "matches.h5"
-    sfm_pairs_path = opensfm_path / "covisible_pairs.txt"
-    sparse_path = opensfm_path / "sparse"
+#     # Generate covisible pairs
+#     covisible_pairs(model_path, num_covis=covisibility, pairs_path=pairs_path)
 
-    # Config
-    config = OmegaConf.load(config_path)
-    config.covisibility = covisibility
-    config.feature_extraction.extractor = extractor
-    config.feature_extraction.max_keypoints = max_keypoints
-    config.feature_matching.matcher = matcher
-    save_config(config, opensfm_path)
-    logger.debug(f"Configuration loaded: {config}")
+#     # Extract features
+#     extract_features(
+#         images_path=images_path,
+#         extractor=extractor,
+#         max_keypoints=max_keypoints,
+#         max_img_size=max_img_size,
+#         features_path=features_path,
+#         device=device,
+#     )
 
-    # Generate covisible pairs
-    covisible_pairs(config, sfm_model_path, num_covis=config.covisibility, sfm_pairs_path=sfm_pairs_path)
+#     # Feature matching
+#     feature_matching(pairs_path, features_path, matcher=matcher, matches_path=matches_path, device=device)
 
-    # Extract features
-    extract_features(image_path, features_path, config=config, device=device)
+#     # Create and populate the database
+#     create_database(model_path, database_path)
 
-    # Feature matching
-    feature_matching(
-        sfm_pairs_path, features_path, matches_path, matcher=config.feature_matching.matcher, device=device
-    )
+#     import_features(model_path, features_path, database_path)
 
-    # Create and populate the database
-    create_database(sfm_model_path, database_path)
+#     import_matches(model_path, matches_path, pairs_path, database_path)
 
-    import_features(sfm_model_path, features_path, database_path)
+#     # Perform geometric verification
+#     geometric_verification(model_path, database_path, pairs_path, features_path, matches_path)
 
-    import_matches(sfm_model_path, matches_path, sfm_pairs_path, database_path, config=config)
+#     # Triangulate 3D points
+#     triangulate_points(model_path, sparse_path, database_path, images_path)
 
-    # Perform geometric verification
-    geometric_verification(sfm_model_path, database_path, sfm_pairs_path, features_path, matches_path)
+#     logger.success("OpenSfM pipeline completed successfully")
 
-    # Triangulate 3D points
-    triangulate_points(sfm_model_path, sparse_path, database_path, image_path)
-
-    logger.success("OpenSfM pipeline completed successfully")
+#     return opensfm_path
 
 
-if __name__ == "__main__":
-    run_opensfm()
+# if __name__ == "__main__":
+#     run_opensfm()

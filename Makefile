@@ -10,7 +10,7 @@ install:
 	$(PIP) install .
 
 dev:
-	$(PIP) install -ve .[optional]
+	$(PIP) install -ve .[extra]
 
 torch:
 	$(PIP) install torch==2.4.0 torchvision==0.19.0 --index-url https://download.pytorch.org/whl/cu118
@@ -26,6 +26,5 @@ lint:
 
 format:
 	ruff format $(SRC_DIR)
-
-check:
-	ruff check $(SRC_DIR)
+sort:
+	ruff check $(SRC_DIR) --select I --fix

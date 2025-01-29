@@ -1,2 +1,10 @@
+feature_extraction:
+  single_camera: 1
+  max_image_size: 2000
+  max_num_features: 4096
+
+exhaustive_matcher:
+  guided_matching: 1
+
 mapper:
   ba_global_max_refinements: 5

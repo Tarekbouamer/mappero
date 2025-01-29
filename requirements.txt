@@ -1,0 +1,7 @@
+h5py
+numpy<2.0
+omegaconf>=2.1
+click>=8.0
+loguru>=0.5.3
+open3d>=0.13.0
+# pycolmap==0.6.1

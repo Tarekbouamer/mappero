@@ -1,1 +1,1 @@
-mappero-vis --model /media/torres/ssd_2tb/landmarks/south-building/sparse/0
+mappero-vis --model /mnt/0857093308570933/datasets/landmarks/south-building/opensfm_superpoint_2000_superglue_outdoor_10/sparse

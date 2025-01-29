@@ -1,13 +1,8 @@
 from pathlib import Path
 
-import click
 from loguru import logger
-from omegaconf import OmegaConf
 
-from mappero.utils.config import save_config
-from mappero.utils.logger import setup_logger
 from mappero.utils.process import run_command
-from mappero.utils.io import find_images
 
 
 def run_colmap_process(process_name: str, params: dict):
@@ -71,20 +66,32 @@ def point_triangulator(database_path: Path, image_path: Path, input_path: Path, 
     run_colmap_process("point_triangulator", params)
 
 
-def patch_match_stereo(workspace_path: Path):
+def image_undistorter(image_path: Path, sparse_path: Path, dense_path: Path, max_image_size=2000):
+    """undistort images."""
+    params = {
+        "image_path": str(image_path),
+        "input_path": str(sparse_path / "0"),
+        "output_path": str(dense_path),
+        "output_type": "COLMAP",
+        "max_image_size": max_image_size,
+    }
+    run_colmap_process("image_undistorter", params)
+
+
+def patch_match_stereo(dense_path: Path):
     """run patchmatch stereo for dense reconstruction."""
     params = {
-        "workspace_path": str(workspace_path),
+        "workspace_path": str(dense_path),
         "workspace_format": "COLMAP",
         "PatchMatchStereo.geom_consistency": "true",
     }
     run_colmap_process("patch_match_stereo", params)
 
 
-def stereo_fusion(workspace_path: Path, output_path: Path):
+def stereo_fusion(dense_path: Path, output_path: Path):
     """fuse stereo results."""
     params = {
-        "workspace_path": str(workspace_path),
+        "workspace_path": str(dense_path),
         "workspace_format": "COLMAP",
         "input_type": "geometric",
         "output_path": str(output_path),
@@ -108,95 +115,3 @@ def delaunay_mesher(input_path: Path, output_path: Path):
         "output_path": str(output_path),
     }
     run_colmap_process("delaunay_mesher", params)
-
-
-def run_sfm(config, image_path: Path, database_path: Path, output_path: Path):
-    """run the structure-from-motion pipeline."""
-    feature_extraction(config, image_path, database_path)
-    matcher(config, database_path)
-    mapper(database_path, image_path, output_path)
-
-
-def run_mvs(workspace_path: Path, output_path: Path):
-    """run the multi-view stereo pipeline."""
-    patch_match_stereo(workspace_path)
-    stereo_fusion(workspace_path, output_path)
-
-
-@click.command("run_colmap")
-@click.argument("workspace_path", type=click.Path(exists=True))
-@click.option("--config_path", default="mappero/config/colmap.yaml", help="path to the config file.")
-@click.option("--image_path", type=click.Path(), help="path to the image directory.")
-@click.option(
-    "--task",
-    type=click.Choice(["sfm", "mvs", "fusion", "mesh", "bundle_adjustment", "triangulation"]),
-    default="sfm",
-    help="task to run in the pipeline.",
-)
-@click.option("--max_image_size", default=None, help="maximum image size for feature extraction.")
-@click.option("--vis", is_flag=True, help="enable visualization of results.")
-@click.option(
-    "--matcher",
-    default="exhaustive",
-    type=click.Choice(["exhaustive", "sequential", "vocab_tree"]),
-    help="matcher type to use.",
-)
-@click.help_option("--help", "-h")
-def run_colmap(workspace_path, config_path, image_path, task, max_image_size, vis, matcher):
-    """Colmap pipeline wrapper."""
-
-    # Setup logger
-    setup_logger("Colmap")
-    logger.info("Initializing Colmap pipeline")
-
-    # Workspace
-    workspace_path = Path(workspace_path)
-
-    # Image path
-    image_path = Path(image_path) if image_path else workspace_path / "images"
-
-    # Colmap paths
-    colmap_path = workspace_path / "colmap"
-    colmap_path.mkdir(parents=True, exist_ok=True)
-    logger.debug(f"Colmap path: {colmap_path}")
-
-    database_path = colmap_path / "database.db"
-    sparse_path = colmap_path / "sparse"
-    dense_path = colmap_path / "dense"
-    fusion_path = colmap_path / "fused.ply"
-
-    # Config
-    config = OmegaConf.load(config_path)
-    save_config(config, colmap_path)
-    logger.debug(f"Configuration loaded: {config}")
-
-    # Find images
-    images_paths = find_images(image_path, colmap_path / "images_paths.txt")
-
-    if len(images_paths) == 0:
-        logger.error("no images found in the specified path.")
-        return
-
-    logger.info(f"found {len(images_paths)} images in {image_path}")
-
-    # exe
-    if task == "sfm":
-        sparse_path.mkdir(exist_ok=True, parents=True)
-        run_sfm(config, image_path, database_path, sparse_path)
-    elif task == "mvs":
-        dense_path.mkdir(exist_ok=True, parents=True)
-        run_mvs(dense_path, fusion_path)
-    elif task == "fusion":
-        stereo_fusion(dense_path, fusion_path)
-    elif task == "mesh":
-        poisson_mesher(fusion_path, dense_path / "meshed-poisson.ply")
-    elif task == "bundle_adjustment":
-        raise NotImplementedError("bundle adjustment is not yet implemented")
-    elif task == "triangulation":
-        raise NotImplementedError("triangulation is not yet implemented")
-
-    logger.success("Colmap pipeline completed successfully")
-
-
-if __name__ == "__main__":
-    run_colmap()

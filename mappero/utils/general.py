@@ -1,3 +1,10 @@
+from loguru import logger
+
+try:
+    import pycolmap
+except ImportError:
+    logger.error("PyCOLMAP is not installed")
+
 import contextlib
 import io
 import sys
@@ -7,12 +14,6 @@ from typing import List, Tuple, Union
 
 import h5py
 import numpy as np
-from loguru import logger
-
-try:
-    import pycolmap
-except ImportError:
-    logger.error("PyCOLMAP is not installed")
 
 
 def parse_name(name):
